@@ -1,0 +1,36 @@
+name: gene-annotation-aligner
+
+services:
+  source:
+    build: ./source
+    image: gene-annotation-source
+    environment:
+      # The source is intentionally slow to make concurrency visible.
+      ANNOTATION_DELAY_SECONDS: ${ANNOTATION_DELAY_SECONDS:-2.0}
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  api:
+    build: ./api
+    image: gene-annotation-api
+    environment:
+      ANNOTATION_SOURCE_URL: http://source:8000
+      SOURCE_TIMEOUT_SECONDS: ${SOURCE_TIMEOUT_SECONDS:-30}
+      MAX_CONCURRENT_QUERIES: ${MAX_CONCURRENT_QUERIES:-32}
+    ports:
+      - "8000:8000"
+    depends_on:
+      source:
+        condition: service_healthy
